@@ -2,6 +2,7 @@ package safeurl
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -13,7 +14,13 @@ import (
 )
 
 func buildHttpClient(wc *WrappedClient) *http.Client {
-	transport := wc.transport.Clone()
+	transport := &http.Transport{}
+	if wc.transport != nil {
+		transport = wc.transport.Clone()
+	}
+	if wc.tlsConfig != nil {
+		transport.TLSClientConfig = wc.tlsConfig
+	}
 	transport.DialContext = (&net.Dialer{
 		Resolver: wc.resolver,
 		Control:  buildRunFunc(wc),
@@ -120,6 +127,7 @@ type WrappedClient struct {
 
 	config    *Config
 	transport *http.Transport
+	tlsConfig *tls.Config
 	resolver  *net.Resolver
 
 	// used for track DNS resolutions for testing purposes
@@ -127,13 +135,6 @@ type WrappedClient struct {
 }
 
 func Client(config *Config) *WrappedClient {
-	transport := config.Transport
-	if transport == nil {
-		transport = &http.Transport{
-			TLSClientConfig: config.TlsConfig,
-		}
-	}
-
 	var resolver *net.Resolver = nil
 	if config.InTestMode {
 		resolver = &net.Resolver{
@@ -147,7 +148,8 @@ func Client(config *Config) *WrappedClient {
 
 	wc := &WrappedClient{
 		config:    config,
-		transport: transport,
+		transport: config.Transport,
+		tlsConfig: config.TlsConfig,
 		resolver:  resolver,
 	}
 

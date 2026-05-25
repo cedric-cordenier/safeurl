@@ -3,6 +3,7 @@ package safeurl
 import (
 	"crypto/tls"
 	"fmt"
+	"net/http"
 	"testing"
 )
 
@@ -46,6 +47,43 @@ func TestTLSConfig(t *testing.T) {
 		InsecureSkipVerify: true,
 	}
 	cfg := GetConfigBuilder().SetTlsConfig(tls_config).Build()
+	client := Client(cfg)
+
+	_, err := client.Get("https://expired.badssl.com/")
+	if err != nil {
+		t.Errorf("Failed to make insecure connection %v", err)
+	}
+
+}
+
+func TestTransport(t *testing.T) {
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+	cfg := GetConfigBuilder().SetTransport(transport).Build()
+	client := Client(cfg)
+
+	_, err := client.Get("https://expired.badssl.com/")
+	if err != nil {
+		t.Errorf("Failed to make insecure connection %v", err)
+	}
+
+}
+
+func TestTransportAndTLSConfig(t *testing.T) {
+	cfg := GetConfigBuilder().
+		SetTransport(&http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: false,
+			},
+		}).
+		SetTlsConfig(&tls.Config{
+			InsecureSkipVerify: true,
+		}).
+		Build()
+
 	client := Client(cfg)
 
 	_, err := client.Get("https://expired.badssl.com/")
