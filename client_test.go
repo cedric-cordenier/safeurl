@@ -313,7 +313,7 @@ func TestIPsOutsideBlockedCIDRAreNotBlocked(t *testing.T) {
 
 	client := Client(cfg)
 
-	twoIpInBlockedCIDR := []string{"172.217.14.195"} // generic external IP - this may not resolve in the future
+	twoIpInBlockedCIDR := []string{"1.1.1.1"} // generic external IP - this may not resolve in the future
 
 	for _, ipInBlockedCIDR := range twoIpInBlockedCIDR {
 		_, err := client.Get(fmt.Sprintf("http://%v", ipInBlockedCIDR))
