@@ -13,17 +13,14 @@ import (
 	"syscall"
 )
 
-func buildHttpClient(wc *WrappedClient) *http.Client {
+func buildHttpClient(wc *WrappedClient) (*http.Client, error) {
 	transport := &http.Transport{}
 	if wc.transport != nil {
-		if wc.transport.Dial != nil {
-			panic("custom `Dial` not supported")
-		}
-		if wc.transport.DialTLS != nil {
-			panic("custom `DialTLS` not supported")
+		if wc.transport.DialContext != nil {
+			return nil, &UnsupportedTransportError{field: "DialContext"}
 		}
 		if wc.transport.DialTLSContext != nil {
-			panic("custom `DialTLSContext` not supported")
+			return nil, &UnsupportedTransportError{field: "DialTLSContext"}
 		}
 		transport = wc.transport.Clone()
 	}
@@ -42,7 +39,7 @@ func buildHttpClient(wc *WrappedClient) *http.Client {
 		Transport:     transport,
 	}
 
-	return client
+	return client, nil
 }
 
 func buildRunFunc(wc *WrappedClient) func(network, address string, c syscall.RawConn) error {
@@ -54,16 +51,21 @@ func buildRunFunc(wc *WrappedClient) func(network, address string, c syscall.Raw
 			return &IPv6BlockedError{ip: address}
 		}
 
-		host, port, _ := net.SplitHostPort(address)
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			wc.log(fmt.Sprintf("invalid address format: %v", err))
+			return err
+		}
 
-		if !isPortAllowed(port, wc.config.AllowedPorts) {
+		if err = checkPortAllowed(port, wc.config.AllowedPorts); err != nil {
 			wc.log(fmt.Sprintf("disallowed port: %v", port))
-			return &AllowedPortError{port: port}
+			return err
 		}
 
 		ip := net.ParseIP(host)
 		if ip == nil {
-			panic(fmt.Sprintf("invalid ip: %v", host))
+			wc.log(fmt.Sprintf("invalid dial host: %v", host))
+			return &InvalidHostError{host: host}
 		}
 
 		if isIPAllowed(ip, wc.config.AllowedIPs, wc.config.AllowedIPsCIDR) {
@@ -121,6 +123,13 @@ func isHostValid(parsed *urllib.URL, config *Config, debugLogFunc func(string)) 
 		return &InvalidHostError{host: ""}
 	}
 
+	// IPv6 zone identifiers (e.g. [::ffff:127.0.0.1%any]) are accepted by url.Parse but can
+	// produce unparseable dial addresses such as 127.0.0.1%any in the Control hook.
+	if strings.Contains(host, "%") {
+		debugLogFunc(fmt.Sprintf("host zone identifier not allowed: %s", host))
+		return &InvalidHostError{host: host}
+	}
+
 	if config.AllowedHosts != nil && !isAllowedHost(host, config.AllowedHosts) {
 		debugLogFunc(fmt.Sprintf("disallowed host: %s", host))
 		return &AllowedHostError{host: host}
@@ -143,7 +152,7 @@ type WrappedClient struct {
 	tracer *tracer
 }
 
-func Client(config *Config) *WrappedClient {
+func Client(config *Config) (*WrappedClient, error) {
 	tlsConfig := config.TlsConfig
 	transport := config.Transport
 
@@ -165,8 +174,12 @@ func Client(config *Config) *WrappedClient {
 		resolver:  resolver,
 	}
 
-	wc.Client = buildHttpClient(wc)
-	return wc
+	httpClient, err := buildHttpClient(wc)
+	if err != nil {
+		return nil, err
+	}
+	wc.Client = httpClient
+	return wc, nil
 }
 
 func (wc *WrappedClient) Head(url string) (resp *http.Response, err error) {
@@ -313,6 +326,14 @@ type SendingCredentialsBlockedError struct {
 
 func (e *SendingCredentialsBlockedError) Error() string {
 	return fmt.Sprintf("sending credentials blocked.")
+}
+
+type UnsupportedTransportError struct {
+	field string
+}
+
+func (e *UnsupportedTransportError) Error() string {
+	return fmt.Sprintf("custom %s not supported", e.field)
 }
 
 func unwrap(err error) error {

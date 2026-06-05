@@ -20,7 +20,7 @@ Custom `http.Transport`         - allows callers to configure a custom implement
 
 IsDebugLoggingEnabled           - enables debug logs
 ```
-**Note**: Instances of `http.Transport` passed to `SetTransport` will cause a `panic()` if they define custom implementations for: `Dial`, `DialTLS` or `DialTLSContext`.
+**Note**: Instances of `http.Transport` passed to `SetTransport` must not define custom `DialContext` or `DialTLSContext` hooks. `Client()` returns an `UnsupportedTransportError` if they are set.
 
 ### How to use the safeurl.Client?
 First, you need to include the `safeurl` module. To do that, simply add `github.com/doyensec/safeurl` to your project's `go.mod` file.
@@ -37,7 +37,10 @@ func main() {
         SetAllowedHosts("example.com").
         Build()
 
-    client := safeurl.Client(config)
+    client, err := safeurl.Client(config)
+    if err != nil {
+        fmt.Errorf("failed to create client: %v", err)
+    }
 
     resp, err := client.Get("https://example.com")
     if err != nil {

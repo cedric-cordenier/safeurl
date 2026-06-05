@@ -9,12 +9,21 @@ import (
 	"testing"
 )
 
+func testClient(t *testing.T, cfg *Config) *WrappedClient {
+	t.Helper()
+	client, err := Client(cfg)
+	if err != nil {
+		t.Fatalf("Client: %v", err)
+	}
+	return client
+}
+
 func TestBlockedIP(t *testing.T) {
 	cfg := GetConfigBuilder().
 		EnableIPv6(true).
 		Build()
 
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	ips := []string{"127.0.0.1", "[::1]",
 		// decimal
@@ -57,7 +66,7 @@ func TestTLSConfig(t *testing.T) {
 		InsecureSkipVerify: true,
 	}
 	cfg := GetConfigBuilder().SetTlsConfig(tls_config).Build()
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	_, err := client.Get("https://expired.badssl.com/")
 	if err != nil {
@@ -73,7 +82,7 @@ func TestTransport(t *testing.T) {
 		},
 	}
 	cfg := GetConfigBuilder().SetTransport(transport).Build()
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	_, err := client.Get("https://expired.badssl.com/")
 	if err != nil {
@@ -94,7 +103,7 @@ func TestTransportAndTLSConfig(t *testing.T) {
 		}).
 		Build()
 
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	_, err := client.Get("https://expired.badssl.com/")
 	if err != nil {
@@ -105,7 +114,7 @@ func TestTransportAndTLSConfig(t *testing.T) {
 
 func TestBlockCIDRRange(t *testing.T) {
 	cfg := GetConfigBuilder().Build()
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	ips := GetIPsInCIRDRange("192.168.0.0/28")
 
@@ -129,7 +138,7 @@ func TestUserSuppliedIPBlock(t *testing.T) {
 		SetBlockedIPs("127.0.0.1").
 		Build()
 
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	for _, ip := range ips {
 		_, err := client.Get(fmt.Sprintf("http://%v", ip))
@@ -152,7 +161,7 @@ func TestBlockedPort(t *testing.T) {
 		SetAllowedPorts(port).
 		Build()
 
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	_, err := client.Get(fmt.Sprintf("http://%v:%v", "127.0.0.1", port+1))
 	if err == nil {
@@ -173,7 +182,7 @@ func TestAllowedPort(t *testing.T) {
 		SetAllowedPorts(port).
 		Build()
 
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	_, err := client.Get(fmt.Sprintf("http://%v:%v", "127.0.0.1", port))
 	if err != nil {
@@ -191,7 +200,7 @@ func TestAllowedHost(t *testing.T) {
 		EnableTestMode(true).
 		Build()
 
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	_, err := client.Get(fmt.Sprintf("http://%v:8080", host))
 	if err != nil {
@@ -206,7 +215,7 @@ func TestBlockedHost(t *testing.T) {
 		SetAllowedHosts("x" + host).
 		Build()
 
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	_, err := client.Get(fmt.Sprintf("http://%v", host))
 	if err == nil {
@@ -231,7 +240,7 @@ func TestAllowedScheme(t *testing.T) {
 		EnableTestMode(true).
 		Build()
 
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	_, err := client.Get(fmt.Sprintf("%v://%v:8080", scheme, host))
 	if err != nil {
@@ -248,7 +257,7 @@ func TestBlockedScheme(t *testing.T) {
 		SetAllowedHosts(host).
 		Build()
 
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	_, err := client.Get(fmt.Sprintf("%v://%v", scheme, host))
 	if err == nil {
@@ -269,7 +278,7 @@ func TestDNSRebinding(t *testing.T) {
 		EnableTestMode(true).
 		Build()
 
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	_, err := client.Get("http://service-rbnd.test:8080")
 	if err == nil {
@@ -292,7 +301,7 @@ func TestDisabledIPv6(t *testing.T) {
 		EnableTestMode(true).
 		Build()
 
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	_, err := client.Get("http://service6.test:8080")
 	if err == nil {
@@ -315,7 +324,7 @@ func TestBlockedSendingCredentials(t *testing.T) {
 		AllowSendingCredentials(false).
 		Build()
 
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	creds := []string{"user:pass", "u:pass", "user:p"}
 
@@ -337,7 +346,7 @@ func TestIPsInBlockedCIDRAreBlocked(t *testing.T) {
 		SetBlockedIPsCIDR("34.210.62.0/25", "216.239.34.0/25").
 		Build()
 
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	twoIpInBlockedCIDR := []string{"34.210.62.107", "216.239.34.21"}
 
@@ -359,7 +368,7 @@ func TestIPsOutsideBlockedCIDRAreNotBlocked(t *testing.T) {
 		SetBlockedIPsCIDR("34.210.62.0/25", "216.239.34.0/25").
 		Build()
 
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	twoIpInBlockedCIDR := []string{"1.1.1.1"} // generic external IP - this may not resolve in the future
 
@@ -383,7 +392,7 @@ func TestMultipleIPsInBlockedCIDRAreBlocked(t *testing.T) {
 		SetBlockedIPsCIDR("34.210.62.0/25").
 		Build()
 
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	ipsInBlockedCIDR := GetIPsInCIRDRange("34.210.62.0/25")
 
@@ -407,7 +416,7 @@ func TestIPInAllowedCIDRIsAllowed(t *testing.T) {
 		SetAllowedIPsCIDR("34.210.62.0/25").
 		Build()
 
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	ipInAllowedCIDR := "34.210.62.107"
 
@@ -428,7 +437,7 @@ func TestIPOutsideAllowedCIDRisBlocked(t *testing.T) {
 		SetAllowedIPsCIDR("34.210.62.0/25").
 		Build()
 
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	ipOutsideAllowedCIDR := "172.217.14.195"
 
@@ -450,7 +459,7 @@ func TestAllowedIPInBlockedCIDRIsAllowed(t *testing.T) {
 		SetAllowedIPs("34.210.62.107").
 		Build()
 
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	allowdIpInsideBlockedCIDR := "34.210.62.107"
 
@@ -469,7 +478,7 @@ func TestInternalIPAreAlwaysBlocked(t *testing.T) {
 		SetAllowedPorts(8080).
 		Build()
 
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	internalIPShouldBeBlocked := "127.0.0.1:8080"
 
@@ -488,7 +497,7 @@ func TestInternalIPAreAlwaysBlocked(t *testing.T) {
 
 func TestInvalidHostValidation(t *testing.T) {
 	cfg := GetConfigBuilder().Build()
-	client := Client(cfg)
+	client := testClient(t, cfg)
 
 	urls := []string{"http://[]", "http://[]:123", "http://:123"}
 
@@ -507,11 +516,84 @@ func TestInvalidHostValidation(t *testing.T) {
 
 }
 
-func TestConfigTransportWithCustomDialPanics(t *testing.T) {
+func TestBuildRunFunc_invalidDialPortReturnsError(t *testing.T) {
+	wc := &WrappedClient{config: GetConfigBuilder().Build()}
+	run := buildRunFunc(wc)
+
+	err := run("tcp4", "127.0.0.1:badport", nil)
+	if err == nil {
+		t.Fatal("expected error for non-numeric dial port")
+	}
+	err = unwrap(err)
+	if _, ok := err.(*AllowedPortError); !ok {
+		t.Fatalf("expected AllowedPortError, got %T: %v", err, err)
+	}
+}
+
+func TestBuildRunFunc_invalidDialHostReturnsError(t *testing.T) {
+	wc := &WrappedClient{config: GetConfigBuilder().Build()}
+	run := buildRunFunc(wc)
+
+	err := run("tcp4", "127.0.0.1%any:80", nil)
+	if err == nil {
+		t.Fatal("expected error for unparseable dial host with zone suffix")
+	}
+	err = unwrap(err)
+	if _, ok := err.(*InvalidHostError); !ok {
+		t.Fatalf("expected InvalidHostError, got %T: %v", err, err)
+	}
+}
+
+func TestIPv4MappedIPv6WithZoneDoesNotPanic(t *testing.T) {
+	cfg := GetConfigBuilder().Build()
+	client := testClient(t, cfg)
+
+	urls := []string{
+		"http://[::ffff:127.0.0.1%25any]",
+		"http://[::ffff:8.8.8.8%25eth0]",
+	}
+
+	for _, url := range urls {
+		t.Run(url, func(t *testing.T) {
+			var panicked interface{}
+			func() {
+				defer func() { panicked = recover() }()
+				_, _ = client.Get(url)
+			}()
+			if panicked != nil {
+				t.Fatalf("client panicked: %v", panicked)
+			}
+		})
+	}
+}
+
+func TestIPv4MappedIPv6WithZoneReturnsInvalidHostError(t *testing.T) {
+	cfg := GetConfigBuilder().Build()
+	client := testClient(t, cfg)
+
+	_, err := client.Get("http://[::ffff:127.0.0.1%25any]")
+	if err == nil {
+		t.Fatal("expected error for IPv4-mapped IPv6 with zone identifier")
+	}
+	err = unwrap(err)
+	if _, ok := err.(*InvalidHostError); !ok {
+		t.Fatalf("expected InvalidHostError, got %T: %v", err, err)
+	}
+}
+
+func TestConfigTransportWithCustomDialReturnsError(t *testing.T) {
 	cases := []struct {
 		name      string
 		transport *http.Transport
 	}{
+		{
+			name: "DialContext",
+			transport: &http.Transport{
+				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					return nil, fmt.Errorf("should never be called")
+				},
+			},
+		},
 		{
 			name: "DialTLSContext",
 			transport: &http.Transport{
@@ -521,38 +603,22 @@ func TestConfigTransportWithCustomDialPanics(t *testing.T) {
 				},
 			},
 		},
-		{
-			name: "DialTLS",
-			transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-				DialTLS: func(network, addr string) (net.Conn, error) {
-					return nil, fmt.Errorf("should never be called")
-				},
-			},
-		},
-		{
-			name: "Dial",
-			transport: &http.Transport{
-				Dial: func(network, addr string) (net.Conn, error) {
-					return nil, fmt.Errorf("should never be called")
-				},
-			},
-		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			defer func() {
-				if r := recover(); r == nil {
-					t.Errorf("expected panic when transport sets %s, got none", tc.name)
-				}
-			}()
-
 			cfg := GetConfigBuilder().
 				SetTransport(tc.transport).
 				Build()
 
-			_ = Client(cfg)
+			_, err := Client(cfg)
+			if err == nil {
+				t.Fatalf("expected error when transport sets %s", tc.name)
+			}
+			err = unwrap(err)
+			if _, ok := err.(*UnsupportedTransportError); !ok {
+				t.Fatalf("expected UnsupportedTransportError, got %T: %v", err, err)
+			}
 		})
 	}
 }

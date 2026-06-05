@@ -1,16 +1,18 @@
 package safeurl
 
 import (
-	"fmt"
 	"strconv"
 )
 
-func isPortAllowed(port string, allowedPorts []int) bool {
+func checkPortAllowed(port string, allowedPorts []int) error {
 	porti, err := strconv.Atoi(port)
 	if err != nil {
-		panic(fmt.Sprintf("failed to parse port: %v", port))
+		return &AllowedPortError{port: port}
 	}
-	return _isPortAllowed(porti, allowedPorts)
+	if !_isPortAllowed(porti, allowedPorts) {
+		return &AllowedPortError{port: port}
+	}
+	return nil
 }
 
 func _isPortAllowed(port int, allowedPorts []int) bool {
