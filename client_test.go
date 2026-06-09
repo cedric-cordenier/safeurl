@@ -3,6 +3,7 @@ package safeurl
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -554,5 +555,47 @@ func TestConfigTransportWithCustomDialPanics(t *testing.T) {
 
 			_ = Client(cfg)
 		})
+	}
+}
+
+func TestBuildRunFunc_invalidAddressFormatReturnsError(t *testing.T) {
+	wc := &WrappedClient{config: GetConfigBuilder().Build()}
+	run := buildRunFunc(wc)
+
+	cases := []struct {
+		name    string
+		address string
+	}{
+		{name: "missing port", address: "127.0.0.1"},
+		{name: "missing closing bracket", address: "[::1"},
+		{name: "hostname without port", address: "host"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := run("tcp4", tc.address, nil)
+			if err == nil {
+				t.Fatal("expected error for invalid address format")
+			}
+
+			var addrErr *net.AddrError
+			if !errors.As(err, &addrErr) {
+				t.Fatalf("expected net.AddrError, got %T: %v", err, err)
+			}
+		})
+	}
+}
+
+func TestIPv4MappedIPv6WithZoneReturnsInvalidHostError(t *testing.T) {
+	cfg := GetConfigBuilder().Build()
+	client := Client(cfg)
+
+	_, err := client.Get("http://[::ffff:127.0.0.1%25any]")
+	if err == nil {
+		t.Fatal("expected error for IPv4-mapped IPv6 with zone identifier")
+	}
+	err = unwrap(err)
+	if _, ok := err.(*InvalidHostError); !ok {
+		t.Fatalf("expected InvalidHostError, got %T: %v", err, err)
 	}
 }

@@ -54,7 +54,11 @@ func buildRunFunc(wc *WrappedClient) func(network, address string, c syscall.Raw
 			return &IPv6BlockedError{ip: address}
 		}
 
-		host, port, _ := net.SplitHostPort(address)
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			wc.log(fmt.Sprintf("invalid address format: %v", err))
+			return err
+		}
 
 		if !isPortAllowed(port, wc.config.AllowedPorts) {
 			wc.log(fmt.Sprintf("disallowed port: %v", port))
@@ -63,7 +67,8 @@ func buildRunFunc(wc *WrappedClient) func(network, address string, c syscall.Raw
 
 		ip := net.ParseIP(host)
 		if ip == nil {
-			panic(fmt.Sprintf("invalid ip: %v", host))
+			wc.log(fmt.Sprintf("invalid ip: %v", host))
+			return &InvalidHostError{host: host}
 		}
 
 		if isIPAllowed(ip, wc.config.AllowedIPs, wc.config.AllowedIPsCIDR) {
